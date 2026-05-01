@@ -103,7 +103,7 @@ CData.minumum_layer_thickness = 100;     % specify in mts;
 CData.proposal = [0.05 0.4 0.7 1];
 
 % No of steps and number of samples in each step
-CData.nsteps = 100;       CData.nsamples = 100;
+CData.nsteps = 1000;       CData.nsamples = 500;
 
 CData.resmin = 1.0E-01;    CData.resmax = 1.0E+05;
 
