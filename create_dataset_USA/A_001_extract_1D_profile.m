@@ -9,11 +9,16 @@ clc; clear all; close all;
 
 load('model_data.mat',"z","y","x","rho","MT","CData");
 
+out_dir = fullfile('data', 'model_1D');
+if ~exist(out_dir, 'dir'); mkdir(out_dir); end
+
+save(fullfile(out_dir, 'USA_Model_Data.mat'),"z","y","x","rho","MT","CData");
+
 % load('merged_data.mat','dd','cd')
 fid = fopen('sites_required.dat', 'r');
 indx = textscan(fid,'%s');
 for i = 1:length(indx{1})
-   indxx(i,:) = strtrim(char(indx{1}(i))); 
+   indxx(i,:) = strtrim(char(indx{1}(i)));
 end
 fclose(fid);
 
@@ -32,7 +37,7 @@ for j = 1:length(CData.MT.Stat.lon)
             model_1D.z = z(1:end-1)/1000;
             model_1D.rho = log10(squeeze(rho(indx, indy, :)));
 
-            save([indxx(i,:), '_model_1D.mat'],'model_1D');
+            save(fullfile(out_dir, [indxx(i,:), '_model_1D.mat']),'model_1D');
         end
     end
 end

@@ -5,6 +5,11 @@ ref_lat = 39.7134567;      ref_long = -95.9637527;
 % [CData, dd] = Read_Data_MT('SA_array_gr3s_108Bath_NAD83_moreSites.dat', CData);
 load('USArray.mat','CData',"dd");
 
+out_dir = fullfile('data', 'observed_data');
+if ~exist(out_dir, 'dir'); mkdir(out_dir); end
+
+save(fullfile(out_dir, 'USArray.mat'),'CData',"dd");
+
 % load('merged_data.mat','dd','cd')
 fid = fopen('sites_required.dat', 'r');
 indx = textscan(fid,'%s');
@@ -51,7 +56,7 @@ for j = 1:length(CData.MT.Stat.lon)
            end
 
            % write the data
-           fid = fopen([char(indxx(i,:)), '.dat'],'w');
+           fid = fopen(fullfile(out_dir, [char(indxx(i,:)), '.dat']),'w');
            for ifreq = 1:31
                if abs(Zdet_SI(ifreq)) == 0
                    continue
