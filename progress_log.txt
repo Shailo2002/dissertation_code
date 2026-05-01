@@ -1,0 +1,624 @@
+================================================================================
+  DISSERTATION PROGRESS LOG
+  Topic: 1D Transdimensional Bayesian Inversion of MT Data – Southern African Lithosphere
+  Student: Shailesh Parvadiya
+================================================================================
+
+--------------------------------------------------------------------------------
+[2026-04-08]  PYTHON REWRITE OF MATLAB INVERSION CODE COMPLETED
+--------------------------------------------------------------------------------
+
+WHAT WAS DONE
+-------------
+  The full MATLAB codebase (MT_Bayesian_code/) was read and translated into
+  a clean, well-documented Python package (MT_Python_code/).
+
+ORIGINAL MATLAB FILES (translated)
+-----------------------------------
+  Bayesian_1D_MTDC_J.m          → run_inversion.py
+  initialise_chain.m             → mcmc/chain_init.py
+  MT_DC_function/MT1DFW.m        → forward/mt_forward.py
+  MT_DC_function/DC1DFW.m        → forward/dc_forward.py
+  MT_DC_function/bayesain_hier.m → mcmc/sampler.py
+  MT_DC_function/proposeType.m   → mcmc/proposals.py (propose_type)
+  MT_DC_function/cell_birth.m    → mcmc/proposals.py (cell_birth)
+  MT_DC_function/cell_death.m    → mcmc/proposals.py (cell_death)
+  MT_DC_function/cell_move.m     → mcmc/proposals.py (cell_move)
+  MT_DC_function/change_rho.m    → mcmc/proposals.py (change_rho)
+  MT_DC_function/change_noise.m  → mcmc/proposals.py (change_noise)
+  MT_DC_function/change_noise2.m → mcmc/proposals.py (change_noise2)
+  MT_DC_function/Fwd_response.m  → mcmc/likelihood.py (forward_response)
+  MT_DC_function/Residual.m      → mcmc/likelihood.py (compute_residual)
+  MT_DC_function/estimate_uncertanity.m → mcmc/likelihood.py (estimate_uncertainty)
+  MT_DC_function/estimate_like_norm.m   → mcmc/likelihood.py (estimate_like_norm)
+  MT_DC_function/swap_temperatures.m    → mcmc/parallel_tempering.py
+  MT_DC_function/save_chain.m    → io/chain_io.py (save_chain)
+  MT_DC_function/read_data.m     → io/data_reader.py (read_data)
+  MT_DC_function/create_MT_dataset.m → create_synthetic_data.py
+  Process_chains/A_01_see_chain_convergence.m → postprocess/chain_convergence.py
+  Process_chains/A_02_process_chains.m        → postprocess/process_chains.py
+  Process_chains/KLdivergence.m               → postprocess/process_chains.py (kl_divergence)
+  Process_chains/A_03_plot_posteriori_3_things.m → postprocess/plot_posterior.py
+  Process_chains/A_04_plot_noise.m            → postprocess/plot_noise.py
+
+SPEED IMPROVEMENTS OVER MATLAB
+--------------------------------
+  1. PARALLEL CHAINS (main speedup)
+     Use --parallel flag.  All chains run simultaneously on separate CPU cores
+     using Python multiprocessing.  With 10 chains on 10 cores → ~10x speedup.
+     MATLAB ran all chains sequentially (single process).
+
+  2. NUMPY VECTORISED OPERATIONS
+     All array operations use NumPy (C-compiled), avoiding MATLAB overhead.
+
+  3. FAST FILE I/O
+     Chains saved as .npz (NumPy compressed binary).  ~10x faster than
+     MATLAB's .mat format.  Config saved as JSON (human readable).
+
+  4. NO TOOLBOX DEPENDENCY
+     MATLAB required the Statistics Toolbox (prctile, histcounts, randsample).
+     Python uses only numpy/scipy/matplotlib (free and open-source).
+
+ALGORITHM (unchanged from MATLAB)
+-----------------------------------
+  Transdimensional Markov Chain Monte Carlo (RJMCMC) with Parallel Tempering.
+  Model: Voronoi partition of the 1D earth into layers.
+  Unknowns: number of layers, layer depths, layer resistivities, noise scaling.
+  Prior on resistivity: log-uniform [0.1, 1e5] ohm-m.
+  Prior on depth: log-uniform [10 m, 350 km].
+  Likelihood: Gaussian (Z-impedance) or log-Gaussian (app-res/phase).
+  Proposals: birth, death, move, change-rho, change-noise.
+  PT: swap models between hot and cold chains to escape local minima.
+
+DATA FORMATS SUPPORTED
+-----------------------
+  MT impedance   : MT_data_Z.dat    (period, Re(Z), Im(Z), err_Z)
+  MT app_phase   : MT_data.dat      (period, app_res, err, phase, err)
+  DC Schlumberger: <name>.dat       (AB/2, app_res, err)
+
+HOW TO RUN
+----------
+  1. Create synthetic data:
+       cd MT_Python_code
+       python create_synthetic_data.py --noise 3 --nperiods 20 --output data
+
+  2. Run inversion (fast test):
+       python run_inversion.py --data data/MT_data_Z.dat \
+              --nsteps 20 --nsamples 200 --nchains 2
+
+  3. Run real data (parallel, 10 chains):
+       python run_inversion.py --data MT_data_Z.dat \
+              --nsteps 1000 --nsamples 1000 --nchains 10 --parallel
+
+  4. Process and plot results:
+       python postprocess/chain_convergence.py --folder results
+       python postprocess/process_chains.py    --folder results
+       python postprocess/plot_posterior.py    --folder results
+       python postprocess/plot_noise.py        --folder results
+
+  5. Install dependencies:
+       pip install -r requirements.txt
+
+ESTIMATED TIME (Python vs MATLAB)
+----------------------------------
+  MATLAB (sequential, 10 chains, 1000 steps × 1000 samples):  ~12 hours
+  Python  (parallel,  10 chains, 1000 steps × 1000 samples):  ~1-2 hours
+  (estimate based on NumPy speed + 10-core parallelism)
+
+--------------------------------------------------------------------------------
+[2026-04-15]  NEW SYNTHETIC TEST DATASET: "mobile_belt" (5-layer)
+--------------------------------------------------------------------------------
+
+WHAT WAS DONE
+-------------
+  Generated a third synthetic MT dataset for inversion testing, with a more
+  challenging 5-layer structure than the existing "default_3layer" and 4-layer
+  "craton" tests.  Intended as a stress test for the RJMCMC to recover
+  multiple interfaces and alternating conductors/resistors.
+
+MODEL (geologically motivated: Proterozoic mobile belt / rifted margin)
+------------------------------------------------------------------------
+  Layer 1:      0 –   2 km,    20 ohm-m   (sediment / weathered cover)
+  Layer 2:      2 –  15 km,  2000 ohm-m   (resistive upper crust)
+  Layer 3:     15 –  40 km,    50 ohm-m   (lower-crust conductor)
+  Layer 4:     40 – 150 km,  3000 ohm-m   (resistive lithospheric mantle)
+  Layer 5:    150+ km,         30 ohm-m   (asthenospheric conductor)
+
+ACQUISITION PARAMETERS
+----------------------
+  Periods : 20 log-spaced, 0.1 – 10 000 s  (covers sediment → asthenosphere)
+  Noise   : 4 % Gaussian on Z
+  Seed    : 42 (default in create_synthetic_data.py)
+
+OUTPUT
+------
+  data/synthetic/mobile_belt/
+      MT_data_Z.dat            (period, Re(Z), Im(Z), err_Z)
+      MT_data.dat              (period, app_res, err, phase, err)
+      true_model.json          (layer tops + resistivities)
+      synthetic_data_plot.png  (app-res and phase, true vs noisy)
+
+COMMAND USED
+------------
+  python create_synthetic_data.py \
+         --noise 4 --nperiods 20 --pmin 0.1 --pmax 10000 \
+         --layer_tops 0 2000 15000 40000 150000 \
+         --layer_rho  20 2000 50 3000 30 \
+         --output data/synthetic/mobile_belt
+
+WHY THIS TEST IS USEFUL
+-----------------------
+  * Alternating conductor-resistor sequence → checks that RJMCMC can resolve
+    multiple interfaces instead of collapsing to a smoother 3-layer model.
+  * Broad period range (0.1 – 1e4 s) probes depths from ~1 km to > 200 km,
+    covering crust, lithospheric mantle, and asthenosphere — the same
+    depth span targeted in the Southern African study.
+  * 4 % noise is moderately high, giving a realistic challenge for
+    noise-hyperparameter estimation (change_noise / change_noise2 moves).
+
+--------------------------------------------------------------------------------
+[2026-04-15]  BUG FIX: cell_birth sort order + forward NaN handling
+--------------------------------------------------------------------------------
+
+SYMPTOM
+-------
+  On the mobile_belt 5-layer synthetic test (10 steps × 1000 samples × 5 chains)
+  the inversion became very slow compared with the default 3-layer case.
+  Chains 1 and 2 spent ~13 000 forward-model calls per step to accept 500
+  samples (acceptance rate ~3.5 %), and the log was filled with:
+
+    mt_forward.py:57: RuntimeWarning: overflow encountered in exp
+    mt_forward.py:60: RuntimeWarning: invalid value encountered in scalar multiply
+    mt_forward.py:61: RuntimeWarning: invalid value encountered in scalar divide
+
+ROOT CAUSE
+----------
+  cell_birth() inserted the new Voronoi node *after* the nearest existing
+  node. The "nearest" neighbour is chosen by absolute distance, so it may
+  be deeper than the proposed depth z_new. When that happened, the model's
+  internal depth column became UNSORTED, and model_to_layers() then produced
+  NEGATIVE thicknesses via np.diff(z).  Negative h in mt1d_forward turned
+  exp(-2*h*dj) into exp(+large) → overflow → Inf → NaN in the impedance.
+  The NaN propagated into compute_residual(), giving a NaN likelihood.
+  Python's builtin min(0.0, NaN) returns 0.0 (unlike MATLAB's min), which
+  caused Metropolis-Hastings to accept some NaN proposals and then reject
+  nearly everything afterwards, wasting forward-model calls.
+
+FIX
+---
+  1. mcmc/proposals.py :: cell_birth
+         The new node is now inserted at its correct sorted position using
+         np.searchsorted(internal_depths, z_new), not at nearest+1.
+         This guarantees np.diff(z) ≥ 0.
+
+  2. forward/mt_forward.py :: mt1d_forward
+         Wrapped the period loop in
+             np.errstate(over='ignore', under='ignore',
+                         invalid='ignore', divide='ignore')
+         to silence the (now much rarer) spurious warnings and avoid the
+         Python warnings-machinery overhead per forward call.
+
+  3. mcmc/likelihood.py :: compute_residual
+         If LF is non-finite (NaN or Inf), return LF = 1e30 and nrms filled
+         with a large finite sentinel.  This ensures any residual pathological
+         proposal is cleanly rejected by MH instead of corrupting the chain.
+
+  4. run_inversion.py :: _write_acceptance_summary
+         New argument elapsed_sec.  The Acceptance_Rate_Summary.txt now
+         includes a "Total time" line (h/m/s and minutes).
+
+EXPECTED IMPACT
+---------------
+  * No more "overflow / invalid value" warnings during inversion.
+  * Per-step acceptance rates become consistent across chains (previously
+    chain 1/2 were stuck at 3–4 % because of repeated NaN rejections).
+  * Forward-model call count per step should drop by ~3–4× on hard cases.
+  * The summary file now records wall-clock time, which we will quote in
+    the thesis benchmark section.
+
+--------------------------------------------------------------------------------
+[TODO]  RESULTS AND INTERPRETATION  (to be filled as analysis progresses)
+--------------------------------------------------------------------------------
+
+[ ] Run synthetic test with known 3-layer model – verify code correctness
+[ ] Apply to real Southern African MT data (real data file: MT_data_Z.dat)
+[ ] Analyse convergence: accept rate ~30-40% optimal for MCMC
+[ ] Analyse posterior PDF – identify lithospheric layers:
+      - Crust:        0 – ~40 km depth
+      - Lithospheric mantle: 40 – ~150 km
+      - Asthenosphere: below ~150 km (conductor expected)
+[ ] Compute KL-divergence to identify statistically significant interfaces
+[ ] Compare with existing 2D/3D models from literature (SA lithosphere)
+[ ] Write thesis chapter on inversion methodology (reference: Bodin & Sambridge 2009)
+
+REFERENCES
+----------
+  Bodin, T. & Sambridge, M. (2009). Seismic tomography with the reversible jump
+    algorithm. Geophys. J. Int., 178, 1411–1436.
+  Malinverno, A. (2002). Parsimonious Bayesian Markov chain Monte Carlo inversion
+    in a nonlinear geophysical problem. Geophys. J. Int., 151, 675–688.
+  Wait, J.R. (1954). On the relation between telluric currents and the Earth's
+    magnetic field. Geophysics, 19, 281–289.
+  Ghosh, D.P. (1971). The application of linear filter theory to the direct
+    interpretation of geoelectrical resistivity sounding measurements. Geophys.
+    Prospecting, 19, 192–217.
+
+--------------------------------------------------------------------------------
+[2026-04-29]  MATLAB POST-PROCESSING PIPELINE FIXED + AUTOMATED FOR macOS
+--------------------------------------------------------------------------------
+
+CONTEXT
+-------
+  Returning to the original MATLAB pipeline (Bayesian_1D_MTDC_J_looped.m +
+  Process_All_Chains/) on macOS to run the inversion on Southern-African
+  stations bot228_rev and bot407_rev (MT-only, 5 chains at T=1, 100 steps,
+  100 samples/step).  Several portability and toolbox-availability issues
+  surfaced; all were resolved and the post-processing was wrapped in a
+  station-loop driver so multiple sites can be processed in one shot.
+
+INVERSION DRIVER FIX  (Bayesian_1D_MTDC_J_looped.m)
+----------------------------------------------------
+  BUG    Line 22 used a Windows-style path separator:
+              destination_folder = [pwd,'\',folder_name];
+         On macOS '\' is not a separator, so destination_folder became
+         "/Users/.../Bayesian_code\STATION_R1" — an invalid path.  save_chain
+         then silently failed inside its try/catch (copyfile threw, the catch
+         swallowed it, the .mat file was left behind in the working directory
+         instead of being moved into the per-station folder).
+  FIX    Replaced with cross-platform fullfile:
+              destination_folder = fullfile(pwd, folder_name);
+         Chain files now land correctly in <STATION>_R1/.
+
+CHAIN-FILE NAMING NOTE
+----------------------
+  save_chain.m uses the inversion_method to choose the output filename:
+       MT       → MT_TD_Chain_<NNN>.mat
+       DC       → DC_TD_Chain_<NNN>.mat
+       MT_DC    → MT_DC_TD_Chain_<NNN>.mat
+  Bayesian_1D_MTDC_J_looped.m sets inversion_method = 'MT', so the produced
+  filenames are MT_TD_Chain_001..005.mat (NOT MT_DC_TD_Chain_*).  The
+  Process_All_Chains scripts try the three filename patterns in sequence;
+  if none are found, the catch-fall-through reports the last attempted
+  pattern (MT_DC_TD_Chain_001.mat) — that misleading error message means
+  "current working directory does not contain any chain file", not that
+  MT_DC_TD_Chain is the expected name.
+
+POST-PROCESSING TOOLBOX FIX  (nansum → sum(...,'omitnan'))
+----------------------------------------------------------
+  Modern MATLAB releases ship `nansum` only with the Statistics &
+  Machine Learning Toolbox.  Without that toolbox, A_03 errored at:
+       kPDF = nansum(S.kSamples,2)./(nansum(nansum(S.kSamples))*S.dz);
+  Replaced with toolbox-free equivalents in four files:
+       Process_All_Chains/A_03_plot_posteriori_3_things.m
+       Process_All_Chains/Z_03_plot_posteriori_3_things.m
+       Process_All_Chains/AB1_convert_data_for_data_minning.m
+       Process_All_Chains/AB1_plot_combined_posteriori_interface.m
+  New form (numerically identical):
+       kPDF = sum(S.kSamples,2,'omitnan') ...
+              ./ (sum(S.kSamples(:),'omitnan') * S.dz);
+
+POST-PROCESSING PIPELINE (Process_All_Chains/) — REFERENCE
+------------------------------------------------------------
+  Core pipeline (run per station, in this order):
+     1. A_01_see_chain_convergence.m
+            Plots nRMS, log-likelihood, sigma vs sample # for all chains.
+            Used to verify chains converged before further analysis.
+            Output: MT_TD_Chain.jpg in the station folder.
+     2. A_02_process_chains.m
+            Discards burn-in (first half), thins by 25, removes samples
+            with nRMS > 5, then bins ensemble onto (depth × log10-rho)
+            grid → posteriorPDF, p5/p95 envelopes, kSamples (interface
+            probability density), and per-bin KL-divergence vs uniform
+            prior.  Output: MT_TD_Chain_Processed.mat,
+            MT_TD_Chain_Stat_info.mat.
+     3. A_03_plot_posteriori_3_things.m
+            Three-panel result figure: posterior resistivity PDF heatmap,
+            interface-probability vs depth, histogram of # of layers.
+            Output: MT_Post_image.jpg.  This is the main thesis figure.
+     4. A_04_plot_noise.m
+            Plots inferred data-noise hyperparameter trace and histogram.
+            Confirms hierarchical noise estimate has stabilised.
+            Output: MT_noise_image.jpg.
+
+  Helper functions (called internally, not run directly):
+     - KLdivergence.m    KL(P||Q) for posterior-vs-prior per depth bin.
+     - plotModel1D.m     Overlays a reference 1-D model on the PDF panel.
+     - tight_subplot.m   Tight-margin subplot grid (Kumpulainen, third party).
+
+  Optional comparison scripts (only useful when comparing multiple
+  experiments — MT vs DC vs joint, or multiple synthetics; require
+  hard-coded input filenames to be renamed/edited):
+     Z_03_plot_posteriori_3_things.m       log-depth variant of A_03.
+     Z_04_plot_noise.m                     variant of A_04 on _Combined.
+     AB_01_lambda_plot.m                   λ comparison MT/DC/MT_DC.
+     AB_01_cross_plots_3_layer.m / 4_layer cross-plots of layer rho across
+                                            depth bands.
+     AB1_plot_combined_posteriori_interface.m  3×3 panel comparison of
+                                                 posterior + interface PDF.
+     AB1_plot_conductance_3_cases.m        conductance integrals, 3 cases.
+     AB1_plot_layer_rho_data_minning.m     rho-vs-thickness joint density.
+     AB1_convert_data_for_data_minning.m   reformats ensemble for AB1_*.
+
+AUTOMATION DRIVER  (new: Bayesian_code/run_all_processing.m)
+-------------------------------------------------------------
+  Loops over every <STATION>_R1/ folder in Bayesian_code/ and runs
+  A_01 → A_02 → A_03 inside each, with these properties:
+
+     * cd's into the station folder before each script (chain files are
+       loaded relative to cwd).
+     * Calls each script BY NAME via a small helper function that does
+       `eval(scriptname)`, NOT via MATLAB's run() — because run() silently
+       cd's into the script's own folder while executing.  That behaviour
+       was the cause of an A_02 "MT_DC_TD_Chain_001.mat not found" error
+       even though the chain files were present and A_01 (loaded via the
+       same run()) had appeared to succeed.
+     * Helper-function isolation: A_02 starts with `clc; clear; close all`,
+       which would wipe the driver's loop variables if executed in the
+       same workspace.  Calling each script from inside a helper function
+       confines the `clear` to the helper's local workspace.
+     * Adds the station name as figure super-title (sgtitle) before
+       saving, so each image is self-labeled.
+     * Original per-station outputs (MT_TD_Chain.jpg, MT_Post_image.jpg)
+       remain inside <STATION>_R1/.
+     * Driver additionally writes station-prefixed quick-look copies into
+       a top-level Bayesian_code/output/ folder
+       (<station>_convergence.jpg, <station>_posterior.jpg) for
+       side-by-side review of all sites.
+
+DEBUGGING DISCOVERY (worth recording for thesis methods chapter)
+-----------------------------------------------------------------
+  MATLAB's `run(fullpath)` function temporarily changes the working
+  directory to the script's containing folder while the script executes,
+  then restores cwd on return.  Scripts that load data files using bare
+  filenames ("relative-to-cwd" loads, e.g. load('MT_TD_Chain_001.mat'))
+  therefore look in the SCRIPT's folder rather than the caller's working
+  directory — the opposite of what is usually expected.  Two safe ways
+  to invoke a script from a driver:
+     (a) addpath the script's folder once, then call by name
+         (e.g. eval('A_01_see_chain_convergence')) — cwd is preserved.
+     (b) use load(fullfile(data_dir, 'file.mat')) inside the script —
+         independent of cwd.
+  This explains why every script in Process_All_Chains worked when typed
+  manually at the prompt (the user's pwd was the station folder) but
+  failed under the driver until we switched away from run().
+
+SESSION DELIVERABLES
+--------------------
+  Modified files
+     Bayesian_1D_MTDC_J_looped.m                      (path separator fix)
+     Process_All_Chains/A_03_plot_posteriori_3_things.m   (nansum → sum)
+     Process_All_Chains/Z_03_plot_posteriori_3_things.m   (nansum → sum)
+     Process_All_Chains/AB1_convert_data_for_data_minning.m (nansum → sum)
+     Process_All_Chains/AB1_plot_combined_posteriori_interface.m (nansum → sum)
+  New file
+     run_all_processing.m   driver that batch-runs A_01..A_03 over all
+                            <STATION>_R1 folders and emits a unified
+                            output/ folder of station-labeled figures.
+
+NEXT STEPS (carryover, not yet started)
+----------------------------------------
+  [ ] Add A_04_plot_noise.m to run_all_processing.m once we want noise
+      diagnostics in the unified output folder.
+  [ ] Once chains for more SAMTEX stations are produced, run the same
+      driver and visually compare convergence + posterior across sites.
+  [ ] Decide whether to also run the joint MT+DC inversion pathway —
+      requires producing a DC datafile and switching CData.inversion_method
+      to 'MT_DC' in Bayesian_1D_MTDC_J_looped.m.
+
+--------------------------------------------------------------------------------
+[2026-04-29]  AUDIT OF NON-CORE SCRIPTS IN Process_All_Chains/
+--------------------------------------------------------------------------------
+
+PURPOSE
+-------
+  After confirming A_01-A_04 form the working core pipeline, audited every
+  remaining script in Process_All_Chains/ to determine which are usable for
+  the current MT-only Southern-African inversion (stations bot228_rev,
+  bot407_rev) and which require additional inversion variants (DC, MT+DC)
+  or manually-curated input files that the original author kept locally.
+  Documenting the audit here so the thesis methods chapter can cite exactly
+  which post-processing was reused, adapted, or skipped.
+
+PER-SCRIPT AUDIT
+-----------------
+
+  Z_03_plot_posteriori_3_things.m
+     - Variant of A_03 that re-bins the ensemble onto a LOG-SPACED depth
+       axis (1 m – 350 km) so shallow and deep features are equally
+       visible.  Saves to a hard-coded filename (dmb017_rev.mat, line 21).
+     - Quirk: line 104 contains a `return` before the plotting block, so
+       the script currently only saves the recomputed S struct and never
+       actually plots.  Plotting code is reachable only by removing the
+       `return`.
+     - Usable now: yes, after editing the output filename and removing
+       the `return`.  Optional but useful for the thesis if a log-depth
+       posterior view is wanted alongside A_03's linear axis.
+
+  Z_04_plot_noise.m
+     - Same noise diagnostic as A_04 but reads a single hard-coded
+       MT_DC_TD_Chain_Combined.mat file.  Combined files are NOT produced
+       by anything in this folder — they are manually curated from
+       multiple runs in the original author's workflow.
+     - Usable now: no.  A_04 already covers this functionality for the
+       single-experiment case.  Skip.
+
+  AB_01_lambda_plot.m
+     - 1×3 panel figure comparing the noise hyperparameter (lambda)
+       across MT-only, DC-only, and joint MT+DC inversions.
+     - Inputs: MT_TD_Chain_Combined.mat, DC_TD_Chain_Combined.mat,
+       MT_DC_TD_Chain_Combined.mat.
+     - Usable now: no, only an MT inversion exists.  Becomes relevant if
+       and when DC and joint inversions are produced on the same station.
+
+  AB_01_cross_plots_3_layer.m
+     - For three pre-defined depth bands (default 5-15, 120-200,
+       250-340 km), produces 3×3 cross-plots of ensemble resistivity in
+       one band vs another.  Standard companion figure to a posterior
+       PDF: shows whether crust, lithospheric mantle, and asthenosphere
+       resistivities are statistically distinguishable at the chosen
+       station.
+     - Input: dmb017_rev.mat (the file Z_03 produces) — hard-coded.
+     - Usable now: yes, after running Z_03 and pointing this script at
+       its output.  Recommended thesis figure for the lithosphere
+       discussion.
+
+  AB_01_cross_plots_4_layer.m
+     - Same idea as AB_01_cross_plots_3_layer but with four depth bands
+       and the three inversion variants overlaid.
+     - Inputs: MT_exp3.mat, DC_exp3.mat, MT_DC_exp3.mat (hard-coded;
+       each is a renamed Z_03 output for one inversion variant).
+     - Usable now: no — needs DC and MT+DC variants.
+
+  AB1_plot_combined_posteriori_interface.m
+     - 3×3 publication panel: rows = MT / DC / joint MT+DC, columns =
+       posterior PDF heatmap, interface probability density, #-layers
+       histogram.  Equivalent to three A_03 figures stacked.
+     - Note: lines 21-25 of the script currently load the same file
+       three times — copy-paste mistake in the original; would need
+       editing before use.
+     - Usable now: no — needs three variants.
+
+  AB1_plot_conductance_3_cases.m
+     - Filters the ensemble to members with exactly 3 layers, computes
+       the conductance (depth-integrated conductivity, in S) of the
+       middle layer for each of MT / DC / joint, then histogram-compares
+       the three.  Conductance is the canonical MT-derived integrated
+       quantity used in tectonic interpretation.
+     - Usable now: no (Combined files), but the conductance computation
+       itself (~10 lines) could be lifted out and applied to the
+       MT-only ensemble.
+
+  AB1_plot_layer_rho_data_minning.m
+     - For ensemble members with a fixed number of layers (default 3),
+       produces a 3×3 grid of joint density plots showing resistivity
+       vs log10 thickness for each layer in each inversion variant.
+       Visualises the inversion's resistivity-thickness trade-off.
+     - Input: same _Combined.mat files as above.
+     - Usable now: no as-is.  The underlying logic is meaningful for a
+       single MT run and could be reused.
+
+  AB1_convert_data_for_data_minning.m
+     - Reorganises a _Combined.mat ensemble into per-sample tables of
+       (#-layers, thicknesses, resistivities) for the AB1 plot scripts
+       to consume.
+     - Note: lines 25-onwards contain stray code that does not match
+       the script's stated purpose — appears to be a paste error from
+       another script.  Would error if run as-is.
+     - Usable now: no.  Needs both a Combined input and a code fix.
+
+USAGE DECISION FOR CURRENT WORK
+--------------------------------
+  For the MT-only Southern-African inversion (current work), the only
+  non-core scripts worth running are:
+     1. Z_03_plot_posteriori_3_things  (after edits) — for a log-depth
+        posterior figure complementing A_03.
+     2. AB_01_cross_plots_3_layer  (after Z_03) — for the
+        crust/mantle/asthenosphere resistivity cross-plot.
+
+  Everything else either requires DC and/or joint MT+DC inversions, or
+  references _Combined.mat files that were a manual artefact of the
+  original author's workflow and are not produced by this codebase.
+
+--------------------------------------------------------------------------------
+[2026-04-29]  POST-PROCESSING DRIVER EXPANDED TO 6 SCRIPTS PER STATION
+--------------------------------------------------------------------------------
+
+WHAT WAS DONE
+-------------
+  Made two non-core scripts station-portable so they can be added to the
+  automated driver, then expanded run_all_processing.m to run six scripts
+  per station instead of three.
+
+PORTING Z_03_plot_posteriori_3_things.m
+----------------------------------------
+  Original issues:
+     1. Saved its log-depth statistics to a hard-coded filename
+        'dmb017_rev.mat' (the original author's specific station).
+     2. A `return` statement on line 104 short-circuited the script
+        before any plotting code could run, so it never produced a
+        figure.
+     3. Final `print` call referenced a removed variable `cfile`.
+  Fixes:
+     - Output filename is now derived from the inversion variant:
+            MT     → MT_TD_Chain_LogStat.mat
+            DC     → DC_TD_Chain_LogStat.mat
+            MT_DC  → MT_DC_TD_Chain_LogStat.mat
+       Same naming convention as the upstream A_02 outputs, so
+       Z_03 can run unmodified for any station.
+     - Removed the early `return`; the plotting block now executes.
+     - `print` now uses the derived `image_name`
+       (MT_LogPost_image.jpg etc.).
+  Output: <prefix>_LogPost_image.jpg in the station folder.
+
+PORTING AB_01_cross_plots_3_layer.m
+------------------------------------
+  Original issue: three hard-coded `load('dmb017_rev.mat')` calls
+  pinning the script to a single experiment.
+  Fix: at the top of the script, autodetect which `*_LogStat.mat` is
+  present in the current folder (MT, DC, or MT_DC) and load that
+  one in all three locations.  If no LogStat file is found the script
+  errors with a clear message ("Run Z_03 first.").
+  Output filename also renamed: 'Cross_Plot_exp3_New.jpg' → 'Cross_Plot_3layer.jpg'.
+
+DRIVER UPDATE  (run_all_processing.m)
+--------------------------------------
+  Added three more script blocks after A_03 in the per-station loop:
+     A_04_plot_noise            tag = 'noise'
+     Z_03_plot_posteriori_3_things  tag = 'logposterior'
+     AB_01_cross_plots_3_layer  tag = 'crossplot'
+  Z_03 must precede AB_01 because AB_01 consumes Z_03's *_LogStat.mat.
+  Each block follows the same defensive pattern as the existing ones:
+  cd into the station folder before and after the run, capture failures
+  with try/catch and print "<script> failed: <reason>", and pass
+  the resulting figure through annotate_and_save() to write a
+  station-prefixed quick-look copy into Bayesian_code/output/.
+
+PER-STATION OUTPUT INVENTORY (after the driver completes)
+----------------------------------------------------------
+  Inside <STATION>_R1/:
+     MT_TD_Chain.jpg              chain convergence
+     MT_TD_Chain_001..005.mat     raw chain dumps
+     MT_TD_Chain_Processed.mat    burn-in/thinned ensemble
+     MT_TD_Chain_Stat_info.mat    binned posterior on linear depth
+     MT_Post_image.jpg            posterior figure (linear depth)
+     MT_noise_image.jpg           noise hyperparameter diagnostic
+     MT_TD_Chain_LogStat.mat      binned posterior on log-spaced depth
+     MT_LogPost_image.jpg         posterior figure (log depth)
+     Cross_Plot_3layer.jpg        depth-band resistivity cross-plots
+
+  Inside Bayesian_code/output/ (station-prefixed, for side-by-side review):
+     <station>_convergence.jpg
+     <station>_posterior.jpg
+     <station>_noise.jpg
+     <station>_logposterior.jpg
+     <station>_crossplot.jpg
+
+WHY THIS MATTERS (for thesis)
+------------------------------
+  The six scripts together produce the complete diagnostic + result
+  package for a single MT station:
+     - Convergence (A_01) and noise stability (A_04) are the
+       methodological evidence that the MCMC sampling worked.
+     - Linear-depth posterior (A_03) is the canonical "headline"
+       result figure.
+     - Log-depth posterior (Z_03) emphasises shallow-crustal
+       structure that the linear axis under-resolves.
+     - Cross-plots (AB_01) demonstrate that crust, lithospheric
+       mantle, and asthenosphere occupy statistically distinct
+       resistivity regions in the ensemble — the quantitative
+       backing for any layered-tectonic interpretation.
+  Having these emitted automatically into a single output/ folder
+  with station-prefixed filenames will make multi-station
+  comparison (the eventual SAMTEX synthesis figure) trivial.
+
+================================================================================
+END OF LOG
+================================================================================
+
+[2026-04-30] Checked 24 MT_DAT stations against Samtex_ObservedData_Max_out.dat; wrote 23 matches to sites_required.dat. Missing: SAMTEX.rtz401.2005.dat (not in observed file).
+[2026-04-30] Updated A_001_extract_1D_profile.m and A2_extract_data.m to save outputs into data/model_1D/ and data/observed_data/ subfolders (auto-created with mkdir).
+[2026-04-30] Updated Bayesian_1D_MTDC_J_looped.m to read MT_datafile from data/observed_data/.
+[2026-04-30] Reorganized output folder structure: Bayesian_1D_MTDC_J_looped.m writes chains + LogFile to output/inversions/<station>/; run_all_processing.m reads from there and writes processed mats + plots to output/results/<station>/.
+[2026-04-30] A_03_plot_posteriori_3_things.m: replaced hardcoded data/bot407_rev_model_1D.mat with station-aware lookup (data/model_1D/<station>_model_1D.mat resolved from project root) so the reference 1D model overlay appears when run via run_all_processing.m and matches the actual station.
+[2026-05-01] A_03 / Z_03 plot_posteriori_3_things.m: fixed reference 1D model lookup. The previous code looked under data/model_1D/<station>_model_1D.mat (a directory that doesn't exist) and Z_03 still hardcoded MTD21_model_1D.mat. Both now search data/<station>_model_1D.mat first (matching actual repo layout) then fall back to data/model_1D/<station>_model_1D.mat, so the reference model overlay is drawn for each station via run_all_processing.m.
+[2026-05-01] run_all_processing.m: removed duplicate result JPEGs. Each processing script (A_01, A_03, A_04, Z_03, AB_01) was saving a generic-named figure (MT_TD_Chain.jpg, MT_Post_image.jpg, MT_LogPost_image.jpg, MT_noise_image.jpg, Cross_Plot_3layer.jpg) in addition to the station-prefixed copy written by annotate_and_save; now these generic copies are deleted at the end of each station iteration, and the existing duplicates on disk were cleaned up.
