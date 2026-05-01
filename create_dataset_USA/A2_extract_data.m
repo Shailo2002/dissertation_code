@@ -14,7 +14,7 @@ save(fullfile(out_dir, 'USArray.mat'),'CData',"dd");
 fid = fopen('sites_required.dat', 'r');
 indx = textscan(fid,'%s');
 for i = 1:length(indx{1})
-   indxx(i,:) = strtrim(char(indx{1}(i))); 
+   site_names{i} = strtrim(char(indx{1}(i)));
 end
 fclose(fid);
 
@@ -26,10 +26,14 @@ Zdet_SI  = zeros(1, Nf);
 rhoa     = zeros(1, Nf);
 phase    = zeros(1, Nf);
 
+code_list = char(CData.MT.Stat.code);
 for j = 1:length(CData.MT.Stat.lon)
     flag = 0;
-    for i = 1:size(indxx,1)
-       if strcmpi(CData.MT.Stat.code(j,:), indxx(i,:))
+    trimmed = strtrim(code_list(j,:));
+    for i = 1:length(site_names)
+       site = site_names{i};
+       nmin = min(length(trimmed), length(site));
+       if nmin >= 4 && strncmpi(trimmed, site, nmin)
            fprintf('%s %s\n','Site selected',char(CData.MT.Stat.code(j,:)));
 
            data = squeeze(dd.data(j,:,:));
@@ -56,8 +60,8 @@ for j = 1:length(CData.MT.Stat.lon)
            end
 
            % write the data
-           fid = fopen(fullfile(out_dir, [char(indxx(i,:)), '.dat']),'w');
-           for ifreq = 1:31
+           fid = fopen(fullfile(out_dir, [char(site_names{i}), '.dat']),'w');
+           for ifreq = 1:Nf
                if abs(Zdet_SI(ifreq)) == 0
                    continue
                end
