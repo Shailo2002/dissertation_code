@@ -1,0 +1,10 @@
+station,lat,lon,tectonic_group
+# Coordinates and tectonic units pulled from
+#   Station_filtering/1d_data_checkup/output/csv/generated_csv/selected_24_stations.csv
+# `station` must match the inversion-folder name under output/inversions/.
+# Lines starting with '#' are ignored.
+bot228_rev,-24.139922,23.144806,archean
+bot407_rev,-24.345728,25.525831,archean
+bot416_rev,-22.966006,26.376389,limpopo
+NEN003_imp_rev,-21.632061,20.853275,mesoproterozoic_belts
+ELZ291A_rev,-17.723783,23.930275,neoproterozoic

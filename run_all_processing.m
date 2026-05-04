@@ -72,16 +72,16 @@ for k = 1:length(station_dirs)
     close all;
 
     % --- A_04 : noise hyperparameter diagnostic
-    try
-        cd(res_folder);
-        fprintf('  [A_04] cwd = %s\n', pwd);
-        run_script('A_04_plot_noise');
-        cd(res_folder);
-        annotate_and_save(gcf, station, 'noise', res_folder);
-    catch ME
-        fprintf('  A_04 failed: %s\n', ME.message);
-    end
-    close all;
+    % try
+    %     cd(res_folder);
+    %     fprintf('  [A_04] cwd = %s\n', pwd);
+    %     run_script('A_04_plot_noise');
+    %     cd(res_folder);
+    %     annotate_and_save(gcf, station, 'noise', res_folder);
+    % catch ME
+    %     fprintf('  A_04 failed: %s\n', ME.message);
+    % end
+    % close all;
 
     % --- Z_03 : posterior plots on log-spaced depth axis
     try

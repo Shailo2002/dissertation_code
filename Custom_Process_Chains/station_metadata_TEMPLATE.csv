@@ -1,0 +1,15 @@
+station,lat,lon,tectonic_group
+# Fill one row per station you want included in D_07/D_08.
+# tectonic_group is free-form text. Recommended values for this thesis:
+#   craton_interior, craton_margin, mobile_belt, synthetic
+# Lines starting with '#' are ignored. Save this file as
+# station_metadata.csv (without the _TEMPLATE suffix) in the same folder.
+#
+# Examples (replace with your real data):
+bot228,-22.234,26.500,craton_interior
+bot407,-21.500,25.700,craton_margin
+zim128,-19.300,30.100,mobile_belt
+synth01_easy_2layer,0,0,synthetic
+synth02_mod_3layer_RCR,0,0,synthetic
+synth03_hard_4layer,0,0,synthetic
+synth04_vhard_5layer_thin,0,0,synthetic

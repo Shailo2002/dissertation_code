@@ -18,6 +18,14 @@ fclose(fid);
 inv_root = fullfile(pwd, 'output', 'inversions');
 if ~exist(inv_root, 'dir'); mkdir(inv_root); end
 
+% Open one combined acceptance-rate summary file for all stations
+AR_filename = fullfile(inv_root, 'Acceptance_Rate_Summary_AllStations.txt');
+fid_ar = fopen(AR_filename, 'w');
+fprintf(fid_ar, '%s\n', repmat('=',1,70));
+fprintf(fid_ar, '   ACCEPTANCE RATE SUMMARY (all stations, all chains & steps)\n');
+fprintf(fid_ar, '%s\n', repmat('=',1,70));
+fprintf(fid_ar, 'Generated: %s\n\n', datestr(now, 'yyyy-mm-dd HH:MM:SS'));
+
 for i = 1:length(sites_names)
     filename = sites_names{i};
 
@@ -66,8 +74,52 @@ for i = 1:length(sites_names)
     end
     fclose(fid);
     fprintf('%s %s\n','MCMC Procedure Ends for ',filename);
+
+    % =====================================================================
+    %  ACCEPTANCE RATE SUMMARY for this station -> append to combined file
+    % =====================================================================
+    all_AR    = zeros(CData.nChains, CData.nsteps);
+    all_AR_BD = zeros(CData.nChains, CData.nsteps);
+    all_AR_D  = zeros(CData.nChains, CData.nsteps);
+    all_AR_M  = zeros(CData.nChains, CData.nsteps);
+    all_AR_C  = zeros(CData.nChains, CData.nsteps);
+    for ic = 1:CData.nChains
+        for is = 1:CData.nsteps
+            ar = results_all(ic, is).acceptance_all;
+            all_AR(ic,is)    = ar(1);
+            all_AR_BD(ic,is) = ar(2);
+            all_AR_D(ic,is)  = ar(3);
+            all_AR_M(ic,is)  = ar(4);
+            all_AR_C(ic,is)  = ar(5);
+        end
+    end
+    labels  = {'Overall', 'Birth  ', 'Death  ', 'Move   ', 'Change '};
+    AR_mats = {all_AR, all_AR_BD, all_AR_D, all_AR_M, all_AR_C};
+
+    fprintf(fid_ar, '%s\n', repmat('-',1,70));
+    fprintf(fid_ar, 'Station: %s\n', filename);
+    fprintf(fid_ar, '%s\n', repmat('-',1,70));
+    fprintf(fid_ar, '%-10s  %8s  %8s  %8s  %8s\n', ...
+        'Type','Min(%)','Max(%)','Mean(%)','Std(%)');
+    fprintf(fid_ar, '%s\n', repmat('-',1,50));
+    for k = 1:length(labels)
+        v = AR_mats{k}(:);
+        fprintf(fid_ar, '%-10s  %8.2f  %8.2f  %8.2f  %8.2f\n', ...
+            labels{k}, min(v), max(v), mean(v), std(v));
+    end
+    fprintf(fid_ar, '\n%-10s  %8s  %8s  %8s\n', 'Chain','Min(%)','Max(%)','Mean(%)');
+    fprintf(fid_ar, '%s\n', repmat('-',1,38));
+    for ic = 1:CData.nChains
+        v = all_AR(ic,:);
+        fprintf(fid_ar, 'Chain %-4d  %8.2f  %8.2f  %8.2f\n', ...
+            ic, min(v), max(v), mean(v));
+    end
+    fprintf(fid_ar, '\n');
+
     pause(2)
 end
+fclose(fid_ar);
+fprintf('Combined acceptance rate summary saved to: %s\n', AR_filename);
 function CData = GetDefaultParameters( )
 
 % CData.temperature = [ones(1,5) logspace(0, log10(50), 5)];
